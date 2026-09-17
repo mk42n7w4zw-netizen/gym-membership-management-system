@@ -1,299 +1,47 @@
-import {
-  BarChart3,
-  Bell,
-  CalendarDays,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  CreditCard,
-  Dumbbell,
-  LayoutDashboard,
-  Plus,
-  Search,
-  ShieldCheck,
-  TrendingUp,
-  UserRound,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import { attendance, classes, members, paymentDue, revenueData, stats } from './data/mockData';
+import { useMemo, useState } from 'react';
+import { BarChart3, Bell, CalendarDays, CheckCircle2, ChevronRight, Clock3, CreditCard, Dumbbell, LayoutDashboard, Menu, Plus, Search, ShieldCheck, TrendingUp, UserRound, Users, Wallet, X } from 'lucide-react';
+import { attendance, classes, members as initialMembers, paymentDue, plans, revenueData, stats, type Member, type MemberStatus } from './data/mockData';
 
+type Page = 'Overview' | 'Members' | 'Classes' | 'Attendance' | 'Billing' | 'Reports';
 const navItems = [
-  { label: 'Overview', icon: LayoutDashboard, active: true },
-  { label: 'Members', icon: Users },
-  { label: 'Classes', icon: Dumbbell },
-  { label: 'Attendance', icon: CheckCircle2 },
-  { label: 'Billing', icon: CreditCard },
-  { label: 'Reports', icon: BarChart3 },
+  { label: 'Overview', icon: LayoutDashboard }, { label: 'Members', icon: Users }, { label: 'Classes', icon: Dumbbell },
+  { label: 'Attendance', icon: CheckCircle2 }, { label: 'Billing', icon: CreditCard }, { label: 'Reports', icon: BarChart3 },
 ];
-
-const statusColors: Record<string, string> = {
-  Active: 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30',
-  Pending: 'bg-amber-500/15 text-amber-300 border border-amber-400/30',
-  Expired: 'bg-rose-500/15 text-rose-300 border border-rose-400/30',
-};
+const statusColors: Record<string, string> = { Active: 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/30', Pending: 'bg-amber-500/15 text-amber-300 border border-amber-400/30', Expired: 'bg-rose-500/15 text-rose-300 border border-rose-400/30' };
+const card = 'rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-glow';
 
 export default function App() {
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex max-w-[1600px]">
-        <aside className="hidden min-h-screen w-[260px] border-r border-slate-800/80 bg-slate-950/80 p-6 lg:block">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-lg shadow-emerald-500/25">
-              <Dumbbell className="h-6 w-6 text-slate-950" />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Gym Ops</p>
-              <h1 className="text-xl font-semibold text-white">PulseFit</h1>
-            </div>
-          </div>
+  const [page, setPage] = useState<Page>('Overview');
+  const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [query, setQuery] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [notice, setNotice] = useState('');
+  const filteredMembers = useMemo(() => members.filter((m) => `${m.name} ${m.email} ${m.id}`.toLowerCase().includes(query.toLowerCase())), [members, query]);
+  const notify = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 2600); };
 
-          <nav className="mt-10 space-y-2">
-            {navItems.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                  active
-                    ? 'bg-slate-800 text-white shadow-lg shadow-slate-900/60'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="font-medium">{label}</span>
-              </button>
-            ))}
-          </nav>
+  const addMember = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get('name') || 'New member');
+    const member: Member = { id: `MEM-${Math.floor(1000 + Math.random() * 8999)}`, name, email: String(form.get('email') || ''), phone: String(form.get('phone') || ''), plan: String(form.get('plan') || 'Gold'), status: 'Active', renewal: 'Oct 30', trainer: 'Unassigned', joined: 'Today' };
+    setMembers((current) => [member, ...current]); setShowAdd(false); notify(`${name} was added successfully`);
+  };
 
-          <div className="mt-10 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-            <div className="mb-2 flex items-center gap-2 text-emerald-300">
-              <ShieldCheck className="h-4 w-4" />
-              <span className="text-sm font-medium">Membership health</span>
-            </div>
-            <p className="text-3xl font-bold text-white">94.2%</p>
-            <p className="mt-1 text-sm text-emerald-200">Strong retention this quarter.</p>
-          </div>
-        </aside>
-
-        <main className="flex-1">
-          <header className="border-b border-slate-800 bg-slate-950/80 px-5 py-4 backdrop-blur-sm md:px-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Managing dashboard</p>
-                <h2 className="mt-1 text-2xl font-semibold text-white md:text-3xl">Good morning, Alex</h2>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-slate-300">
-                  <Search className="h-4 w-4 text-slate-400" />
-                  <input
-                    className="w-40 bg-transparent text-sm outline-none placeholder:text-slate-500 md:w-56"
-                    placeholder="Search members"
-                  />
-                </div>
-                <button className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-200 transition hover:border-slate-500">
-                  <Bell className="h-4 w-4" />
-                </button>
-                <button className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:brightness-110">
-                  <Plus className="h-4 w-4" />
-                  New member
-                </button>
-              </div>
-            </div>
-          </header>
-
-          <div className="space-y-6 p-5 md:p-8">
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {stats.map(({ label, value, change, trend, detail }) => (
-                <div key={label} className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-glow">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="text-sm">{label}</span>
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                        trend === 'up'
-                          ? 'bg-emerald-500/15 text-emerald-300'
-                          : 'bg-rose-500/15 text-rose-300'
-                      }`}
-                    >
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      {change}
-                    </span>
-                  </div>
-                  <div className="mt-5 flex items-end justify-between">
-                    <p className="text-3xl font-bold text-white">{value}</p>
-                    <p className="text-xs text-slate-400">{detail}</p>
-                  </div>
-                </div>
-              ))}
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-glow">
-                <div className="mb-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Revenue</p>
-                    <h3 className="mt-2 text-xl font-semibold text-white">Monthly performance</h3>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-300">
-                    <Wallet className="h-4 w-4 text-emerald-400" />
-                    $84.8k this month
-                  </div>
-                </div>
-
-                <div className="flex h-52 items-end gap-3">
-                  {revenueData.map(({ month, value }) => (
-                    <div key={month} className="flex flex-1 flex-col items-center gap-3">
-                      <div className="flex w-full items-end justify-center rounded-t-2xl bg-gradient-to-t from-cyan-500 via-sky-500 to-emerald-400/80" style={{ height: `${value}%` }} />
-                      <span className="text-xs text-slate-400">{month}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-glow">
-                <div className="mb-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Schedule</p>
-                    <h3 className="mt-2 text-xl font-semibold text-white">Today’s classes</h3>
-                  </div>
-                  <button className="text-sm font-medium text-cyan-300">View all</button>
-                </div>
-
-                <div className="space-y-3">
-                  {classes.map(({ name, time, coach, seats, intensity }) => (
-                    <div key={name} className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-medium text-white">{name}</p>
-                          <p className="mt-1 text-sm text-slate-400">{coach}</p>
-                        </div>
-                        <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
-                          {intensity}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between text-sm text-slate-300">
-                        <span className="flex items-center gap-2">
-                          <CalendarDays className="h-3.5 w-3.5 text-cyan-400" />
-                          {time}
-                        </span>
-                        <span className="flex items-center gap-2">
-                          <Users className="h-3.5 w-3.5 text-emerald-400" />
-                          {seats} spots left
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-glow">
-                <div className="mb-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Members</p>
-                    <h3 className="mt-2 text-xl font-semibold text-white">Member directory</h3>
-                  </div>
-                  <button className="text-sm font-medium text-cyan-300">Manage all</button>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-800 text-slate-400">
-                        <th className="pb-3 font-medium">Member</th>
-                        <th className="pb-3 font-medium">Plan</th>
-                        <th className="pb-3 font-medium">Status</th>
-                        <th className="pb-3 font-medium">Renewal</th>
-                        <th className="pb-3 font-medium">Trainer</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {members.map(({ id, name, plan, status, renewal, trainer }) => (
-                        <tr key={id} className="border-b border-slate-800/80 text-slate-200">
-                          <td className="py-3 pr-4">
-                            <div>
-                              <p className="font-medium text-white">{name}</p>
-                              <p className="text-xs text-slate-400">{id}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 pr-4">{plan}</td>
-                          <td className="py-3 pr-4">
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[status]}`}>
-                              {status}
-                            </span>
-                          </td>
-                          <td className="py-3 pr-4">{renewal}</td>
-                          <td className="py-3 pr-4">{trainer}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-glow">
-                  <div className="mb-5 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Check-ins</p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">Attendance</h3>
-                    </div>
-                    <button className="text-sm font-medium text-cyan-300">Today</button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {attendance.map(({ name, time, type }) => (
-                      <div key={name} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/80 p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-                            <UserRound className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-white">{name}</p>
-                            <p className="text-xs text-slate-400">{type}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                          <Clock3 className="h-3.5 w-3.5 text-slate-500" />
-                          {time}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-glow">
-                  <div className="mb-5 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm uppercase tracking-[0.18em] text-slate-400">Payments</p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">Due this week</h3>
-                    </div>
-                    <button className="text-sm font-medium text-cyan-300">Review</button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {paymentDue.map(({ name, amount, due }) => (
-                      <div key={name} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/80 p-3">
-                        <div>
-                          <p className="font-medium text-white">{name}</p>
-                          <p className="text-xs text-slate-400">Due {due}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-white">{amount}</p>
-                          <button className="mt-1 inline-flex items-center gap-1 text-xs text-cyan-300">
-                            Send reminder
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </main>
-      </div>
-    </div>
-  );
+  return <div className="min-h-screen bg-slate-950 text-slate-100"><div className="mx-auto flex max-w-[1600px]">
+    <aside className="hidden min-h-screen w-[260px] border-r border-slate-800/80 bg-slate-950/80 p-6 lg:block"><Brand /><Navigation page={page} setPage={setPage} /></aside>
+    <main className="flex-1"><header className="border-b border-slate-800 bg-slate-950/80 px-5 py-4 backdrop-blur-sm md:px-8"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><button className="lg:hidden" onClick={() => setPage('Overview')}><Menu /></button><div><p className="text-sm uppercase tracking-[0.18em] text-slate-400">PulseFit / {page}</p><h2 className="mt-1 text-2xl font-semibold text-white md:text-3xl">Good morning, Alex</h2></div></div><div className="flex items-center gap-3"><div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-slate-300"><Search className="h-4 w-4 text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} className="w-40 bg-transparent text-sm outline-none placeholder:text-slate-500 md:w-56" placeholder="Search members" /></div><button onClick={() => notify('You are all caught up')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900"><Bell className="h-4 w-4" /></button><button onClick={() => setShowAdd(true)} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950"><Plus className="h-4 w-4" /> New member</button></div></div></header><div className="space-y-6 p-5 md:p-8">{page === 'Overview' && <Overview onAdd={() => setShowAdd(true)} />}{page === 'Members' && <MembersList members={filteredMembers} onAdd={() => setShowAdd(true)} onDelete={(id) => { setMembers((current) => current.filter((m) => m.id !== id)); notify('Member removed'); }} />}{page === 'Classes' && <Classes />}{page === 'Attendance' && <Attendance />}{page === 'Billing' && <Billing />}{page === 'Reports' && <Reports />}</div></main></div>{showAdd && <AddMember onClose={() => setShowAdd(false)} onSubmit={addMember} />}{notice && <div className="fixed bottom-6 right-6 rounded-xl border border-emerald-400/30 bg-emerald-500 px-4 py-3 font-medium text-slate-950 shadow-xl">{notice}</div>}</div>;
 }
+
+function Brand() { return <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500"><Dumbbell className="h-6 w-6 text-slate-950" /></div><div><p className="text-xs uppercase tracking-[0.2em] text-slate-400">Gym Ops</p><h1 className="text-xl font-semibold text-white">PulseFit</h1></div></div>; }
+function Navigation({ page, setPage }: { page: Page; setPage: (p: Page) => void }) { return <><nav className="mt-10 space-y-2">{navItems.map(({ label, icon: Icon }) => <button key={label} onClick={() => setPage(label as Page)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${page === label ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`}><Icon className="h-5 w-5" /><span className="font-medium">{label}</span></button>)}</nav><div className="mt-10 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4"><div className="mb-2 flex items-center gap-2 text-emerald-300"><ShieldCheck className="h-4 w-4" /><span className="text-sm font-medium">Membership health</span></div><p className="text-3xl font-bold text-white">94.2%</p><p className="mt-1 text-sm text-emerald-200">Strong retention this quarter.</p></div></>; }
+function Overview({ onAdd }: { onAdd: () => void }) { return <><section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{stats.map(({ label, value, change, trend, detail }) => <div key={label} className={card}><div className="flex items-center justify-between text-slate-400"><span className="text-sm">{label}</span><span className={`rounded-full px-2 py-1 text-xs ${trend === 'up' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}><TrendingUp className="mr-1 inline h-3.5 w-3.5" />{change}</span></div><div className="mt-5 flex items-end justify-between"><p className="text-3xl font-bold text-white">{value}</p><p className="text-xs text-slate-400">{detail}</p></div></div>)}</section><section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]"><div className={card}><div className="mb-6 flex items-center justify-between"><div><p className="text-sm uppercase tracking-[0.18em] text-slate-400">Revenue</p><h3 className="mt-2 text-xl font-semibold text-white">Monthly performance</h3></div><span className="rounded-full border border-slate-700 px-3 py-1.5 text-sm text-slate-300"><Wallet className="mr-2 inline h-4 w-4 text-emerald-400" />$84.8k this month</span></div><div className="flex h-52 items-end gap-3">{revenueData.map(({ month, value }) => <div key={month} className="flex flex-1 flex-col items-center gap-3"><div className="w-full rounded-t-2xl bg-gradient-to-t from-cyan-500 to-emerald-400" style={{ height: `${value}%` }} /><span className="text-xs text-slate-400">{month}</span></div>)}</div></div><div className={card}><SectionTitle eyebrow="Schedule" title="Today's classes" /><div className="space-y-3">{classes.slice(0, 3).map((item) => <ClassRow key={item.name} {...item} />)}</div></div></section><section className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]"><div className={card}><SectionTitle eyebrow="Members" title="Member directory" action="Manage all" /><MembersTable members={initialMembers.slice(0, 4)} /></div><div className="space-y-6"><div className={card}><SectionTitle eyebrow="Check-ins" title="Attendance" action="Today" /><AttendanceRows /></div><div className={card}><SectionTitle eyebrow="Payments" title="Due this week" action="Review" />{paymentDue.slice(0, 3).map((p) => <div key={p.name} className="flex items-center justify-between border-b border-slate-800 py-3"><div><p className="font-medium text-white">{p.name}</p><p className="text-xs text-slate-400">Due {p.due}</p></div><p className="font-semibold text-white">{p.amount}</p></div>)}</div></div></section></>; }
+function SectionTitle({ eyebrow, title, action }: { eyebrow: string; title: string; action?: string }) { return <div className="mb-5 flex items-center justify-between"><div><p className="text-sm uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p><h3 className="mt-2 text-xl font-semibold text-white">{title}</h3></div>{action && <button className="text-sm font-medium text-cyan-300">{action}</button>}</div>; }
+function ClassRow(item: typeof classes[number]) { return <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"><div className="flex justify-between"><div><p className="font-medium text-white">{item.name}</p><p className="mt-1 text-sm text-slate-400">{item.coach}</p></div><span className="rounded-full border border-slate-700 px-2 py-1 text-[11px] uppercase text-slate-300">{item.intensity}</span></div><div className="mt-3 flex justify-between text-sm text-slate-300"><span><CalendarDays className="mr-2 inline h-3.5 w-3.5 text-cyan-400" />{item.time}</span><span><Users className="mr-2 inline h-3.5 w-3.5 text-emerald-400" />{item.seats} spots left</span></div></div>; }
+function MembersTable({ members }: { members: Member[] }) { return <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b border-slate-800 text-slate-400"><th className="pb-3">Member</th><th className="pb-3">Plan</th><th className="pb-3">Status</th><th className="pb-3">Renewal</th></tr></thead><tbody>{members.map((m) => <tr key={m.id} className="border-b border-slate-800/80"><td className="py-3 pr-4"><p className="font-medium text-white">{m.name}</p><p className="text-xs text-slate-400">{m.id}</p></td><td className="py-3 pr-4">{m.plan}</td><td className="py-3 pr-4"><span className={`rounded-full px-2.5 py-1 text-xs ${statusColors[m.status]}`}>{m.status}</span></td><td className="py-3">{m.renewal}</td></tr>)}</tbody></table></div>; }
+function MembersList({ members, onAdd, onDelete }: { members: Member[]; onAdd: () => void; onDelete: (id: string) => void }) { return <div className={card}><div className="mb-6 flex items-center justify-between"><div><p className="text-sm uppercase tracking-[0.18em] text-slate-400">Directory</p><h3 className="mt-2 text-2xl font-semibold text-white">All members <span className="text-slate-500">({members.length})</span></h3></div><button onClick={onAdd} className="rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-slate-950"><Plus className="mr-2 inline h-4 w-4" />Add member</button></div><div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b border-slate-800 text-slate-400"><th className="pb-3">Member</th><th className="pb-3">Contact</th><th className="pb-3">Plan</th><th className="pb-3">Status</th><th className="pb-3">Trainer</th><th className="pb-3">Action</th></tr></thead><tbody>{members.map((m) => <tr key={m.id} className="border-b border-slate-800/80"><td className="py-4"><p className="font-medium text-white">{m.name}</p><p className="text-xs text-slate-400">{m.id} · joined {m.joined}</p></td><td className="py-4 text-slate-300">{m.email}<br />{m.phone}</td><td className="py-4">{m.plan}</td><td className="py-4"><span className={`rounded-full px-2.5 py-1 text-xs ${statusColors[m.status]}`}>{m.status}</span></td><td className="py-4">{m.trainer}</td><td className="py-4"><button onClick={() => onDelete(m.id)} className="text-rose-300 hover:text-rose-200">Remove</button></td></tr>)}</tbody></table></div></div>; }
+function AttendanceRows() { return <div className="space-y-3">{attendance.map((a) => <div key={a.name} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/80 p-3"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"><UserRound className="h-4 w-4" /></div><div><p className="font-medium text-white">{a.name}</p><p className="text-xs text-slate-400">{a.type}</p></div></div><span className="text-sm text-slate-300"><Clock3 className="mr-2 inline h-3.5 w-3.5 text-slate-500" />{a.time}</span></div>)}</div>; }
+function Classes() { return <><SectionTitle eyebrow="Programming" title="Class schedule" action="This week" /><div className="grid gap-4 md:grid-cols-2">{classes.map((item) => <div className={card} key={item.name}><ClassRow {...item} /><button className="mt-4 w-full rounded-lg border border-slate-700 py-2 text-sm text-cyan-300">Manage class</button></div>)}</div></>; }
+function Attendance() { return <div className={card}><SectionTitle eyebrow="Front desk" title="Today's attendance" action="Export CSV" /><div className="mb-5 grid gap-4 md:grid-cols-3"><div className="rounded-xl bg-emerald-500/10 p-4"><p className="text-sm text-slate-400">Check-ins today</p><p className="mt-1 text-3xl font-bold text-white">248</p></div><div className="rounded-xl bg-cyan-500/10 p-4"><p className="text-sm text-slate-400">Peak hour</p><p className="mt-1 text-3xl font-bold text-white">6–7 PM</p></div><div className="rounded-xl bg-violet-500/10 p-4"><p className="text-sm text-slate-400">Class attendance</p><p className="mt-1 text-3xl font-bold text-white">82%</p></div></div><AttendanceRows /></div>; }
+function Billing() { return <><SectionTitle eyebrow="Finance" title="Billing & plans" action="Export report" /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{plans.map((p) => <div className={card} key={p.name}><p className="text-slate-400">{p.name} plan</p><p className="mt-2 text-3xl font-bold text-white">{p.price}<span className="text-sm font-normal text-slate-400"> / month</span></p><p className="mt-3 text-sm text-slate-300">{p.features}</p><p className="mt-5 text-sm text-emerald-300">{p.members} members</p></div>)}</div><div className={`${card} mt-6`}><SectionTitle eyebrow="Collections" title="Upcoming payments" action="Send reminders" />{paymentDue.map((p) => <div key={p.name} className="flex items-center justify-between border-b border-slate-800 py-4"><div><p className="font-medium text-white">{p.name}</p><p className="text-sm text-slate-400">Due {p.due}</p></div><span className="font-semibold text-white">{p.amount}</span></div>)}</div></>; }
+function Reports() { return <div className={card}><SectionTitle eyebrow="Analytics" title="Business reports" action="Download PDF" /><div className="grid gap-4 md:grid-cols-3">{[['Member retention', '94.2%', '+4.8%'], ['Average revenue/member', '$66.04', '+8.7%'], ['Class utilization', '78%', '+5.2%']].map(([label, value, change]) => <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5" key={label}><p className="text-sm text-slate-400">{label}</p><p className="mt-3 text-3xl font-bold text-white">{value}</p><p className="mt-2 text-sm text-emerald-300">{change} this month</p></div>)}</div></div>; }
+function AddMember({ onClose, onSubmit }: { onClose: () => void; onSubmit: (e: React.FormEvent<HTMLFormElement>) => void }) { return <div className="fixed inset-0 z-10 flex items-center justify-center bg-slate-950/80 p-4"><form onSubmit={onSubmit} className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"><div className="mb-6 flex items-center justify-between"><div><p className="text-sm uppercase tracking-[0.18em] text-slate-400">Members</p><h3 className="mt-1 text-2xl font-semibold text-white">Add new member</h3></div><button type="button" onClick={onClose}><X /></button></div><div className="grid gap-4 md:grid-cols-2">{[['name', 'Full name'], ['email', 'Email'], ['phone', 'Phone']].map(([name, label]) => <label key={name} className="text-sm text-slate-300">{label}<input required={name === 'name'} name={name} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400" /></label>)}<label className="text-sm text-slate-300">Plan<select name="plan" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"><option>Basic</option><option>Gold</option><option>Premium</option><option>Elite</option></select></label></div><button className="mt-6 w-full rounded-xl bg-emerald-500 py-3 font-semibold text-slate-950">Create member</button></form></div>; }
