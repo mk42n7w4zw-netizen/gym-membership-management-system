@@ -2,17 +2,30 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const Stripe = require('stripe');
 const Database = require('better-sqlite3');
 
 const app = express();
 const PORT = 3001;
 const dataDir = path.join(__dirname, '..', 'data');
-fs.mkdirSync(dataDir, { recursive: true });
+const JWT_SECRET = process.env.JWT_SECRET || 'pulsefit-dev-secret';
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 
+fs.mkdirSync(dataDir, { recursive: true });
 const db = new Database(path.join(dataDir, 'gym.db'));
 
 const initializeDb = () => {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      role TEXT NOT NULL,
+      password_hash TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS members (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -48,6 +61,14 @@ const initializeDb = () => {
       due TEXT
     );
   `);
+
+  const existingAdmin = db.prepare('SELECT * FROM users WHERE email = ?').get('admin@pulsefit.com');
+  if (!existingAdmin) {
+    const adminId = 'admin-001';
+    const adminHash = bcrypt.hashSync('admin123', 10);
+    db.prepare('INSERT INTO users (id, name, email, role, password_hash) VALUES (?, ?, ?, ?, ?)')
+      .run(adminId, 'System Admin', 'admin@pulsefit.com', 'admin', adminHash);
+  }
 
   const memberCount = db.prepare('SELECT COUNT(*) AS count FROM members').get()?.count || 0;
   if (memberCount === 0) {
@@ -85,10 +106,56 @@ const initializeDb = () => {
 };
 
 initializeDb();
+
 app.use(cors());
 app.use(express.json());
 
-app.get('/api/dashboard', (req, res) => {
+function signToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+}
+
+function authRequired(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, service: 'pulsefit-api' });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+
+  if (!user || !bcrypt.compareSync(String(password || ''), user.password_hash)) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  const token = signToken(user);
+  const safeUser = { id: user.id, name: user.name, email: user.email, role: user.role };
+  return res.json({ token, user: safeUser });
+});
+
+app.get('/api/auth/me', authRequired, (req, res) => {
+  const user = db.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ user });
+});
+
+app.get('/api/dashboard', authRequired, (req, res) => {
   const members = db.prepare('SELECT * FROM members ORDER BY joined DESC').all();
   const attendance = db.prepare('SELECT * FROM attendance ORDER BY id DESC LIMIT 4').all();
   const classes = db.prepare('SELECT * FROM classes ORDER BY id ASC').all();
@@ -112,11 +179,67 @@ app.get('/api/dashboard', (req, res) => {
   });
 });
 
-app.get('/api/members', (req, res) => {
+app.get('/api/billing/plans', authRequired, (req, res) => {
+  res.json({
+    plans: [
+      { name: 'Basic', price: 3900, description: 'Gym floor access' },
+      { name: 'Gold', price: 7900, description: 'Gym + group classes' },
+      { name: 'Premium', price: 11900, description: 'Classes + 2 PT sessions' },
+      { name: 'Elite', price: 17900, description: 'Unlimited coaching' },
+    ],
+  });
+});
+
+app.post('/api/billing/create-checkout', authRequired, async (req, res) => {
+  const { plan = 'Gold', memberName = 'Gym Member' } = req.body || {};
+
+  if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'sk_test_dummy') {
+    return res.status(400).json({ error: 'Stripe is not configured. Add STRIPE_SECRET_KEY to your environment.' });
+  }
+
+  const pricing = {
+    Basic: 3900,
+    Gold: 7900,
+    Premium: 11900,
+    Elite: 17900,
+  };
+
+  const unitAmount = pricing[plan] || pricing.Gold;
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `PulseFit ${plan} Membership`,
+            description: `Membership for ${memberName}`,
+          },
+          unit_amount: unitAmount,
+        },
+        quantity: 1,
+      }],
+      success_url: `${process.env.APP_URL || 'http://localhost:3000'}/billing?success=true`,
+      cancel_url: `${process.env.APP_URL || 'http://localhost:3000'}/billing?canceled=true`,
+      metadata: {
+        plan,
+        memberName,
+        userId: req.user.id,
+      },
+    });
+
+    return res.json({ url: session.url });
+  } catch (error) {
+    return res.status(500).json({ error: 'Stripe checkout failed', details: error.message });
+  }
+});
+
+app.get('/api/members', authRequired, (req, res) => {
   res.json(db.prepare('SELECT * FROM members ORDER BY joined DESC').all());
 });
 
-app.post('/api/members', (req, res) => {
+app.post('/api/members', authRequired, (req, res) => {
   const { name, email, phone, plan } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Member name is required.' });
 
@@ -138,24 +261,25 @@ app.post('/api/members', (req, res) => {
   res.status(201).json(member);
 });
 
-app.delete('/api/members/:id', (req, res) => {
+app.delete('/api/members/:id', authRequired, (req, res) => {
   const result = db.prepare('DELETE FROM members WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Member not found.' });
   res.json({ removed: req.params.id });
 });
 
-app.get('/api/classes', (req, res) => {
+app.get('/api/classes', authRequired, (req, res) => {
   res.json(db.prepare('SELECT * FROM classes ORDER BY id ASC').all());
 });
 
-app.get('/api/attendance', (req, res) => {
+app.get('/api/attendance', authRequired, (req, res) => {
   res.json(db.prepare('SELECT * FROM attendance ORDER BY id DESC LIMIT 8').all());
 });
 
-app.get('/api/payments', (req, res) => {
+app.get('/api/payments', authRequired, (req, res) => {
   res.json(db.prepare('SELECT * FROM payments ORDER BY id ASC').all());
 });
 
 app.listen(PORT, () => {
   console.log(`Gym API listening on http://localhost:${PORT}`);
+  console.log('Default admin credentials: admin@pulsefit.com / admin123');
 });
